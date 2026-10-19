@@ -1,0 +1,265 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone IMU | Flight Deck</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;background:#07101e;color:#e8f3ff;
+  font-family:system-ui,Arial,sans-serif
+}
+header{padding:22px 18px 10px;text-align:center}
+h1{font-size:25px;margin:0;color:#62d9ff}
+.sub{color:#8ba4c2;font-size:12px;letter-spacing:2px}
+main{max-width:850px;margin:auto;padding:12px}
+.panel{
+  background:#101d30;border:1px solid #233954;
+  border-radius:16px;padding:16px;margin-bottom:14px
+}
+h2{font-size:14px;color:#8bdfff;letter-spacing:1px}
+#viewport{height:310px;overflow:hidden;border-radius:12px}
+button,input{
+  width:100%;padding:13px;margin-top:9px;border-radius:9px;
+  border:1px solid #31516e;background:#152a42;color:white;
+  font-size:15px
+}
+button{background:#087eb6;border:0;font-weight:700;cursor:pointer}
+button:disabled{opacity:.5}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.reading{
+  background:#0a1627;border-radius:10px;padding:13px 5px;
+  text-align:center;min-width:0
+}
+.value{font-size:clamp(18px,5vw,27px);color:#66e3ff;font-weight:700}
+.unit{font-size:11px;color:#91a9c4}
+.label{font-size:12px;color:#c6d8ee}
+#status{font-size:13px;color:#f7ce77;margin-top:10px}
+.note{font-size:12px;line-height:1.6;color:#9bb1ca}
+#lock{
+ position:fixed;inset:0;z-index:5;background:#07101e;
+ display:flex;align-items:center;justify-content:center;padding:20px
+}
+#lockbox{width:100%;max-width:340px;text-align:center}
+#error{color:#ff8b8b;font-size:13px;min-height:20px}
+</style>
+</head>
+<body>
+<div id="lock">
+ <div id="lockbox" class="panel">
+  <div style="font-size:42px">✈️</div>
+  <h1>FLIGHT DECK</h1>
+  <p class="note">PHONE IMU CONTROL SYSTEM</p>
+  <form id="login">
+   <input id="password" type="password" inputmode="numeric"
+     placeholder="Enter password" autocomplete="off" required>
+   <button type="submit">UNLOCK DASHBOARD</button>
+  </form>
+  <p id="error"></p>
+ </div>
+</div>
+
+<header>
+ <h1>✈ PHONE IMU</h1>
+ <div class="sub">MOTION LAB · FLIGHT DECK</div>
+</header>
+
+<main>
+ <section class="panel">
+  <h2>01 / LIVE 3D AIRCRAFT</h2>
+  <div id="viewport"></div>
+  <button id="sensorButton">ENABLE PHONE SENSORS</button>
+  <button id="calibrate" style="background:#263b55">SET CURRENT POSITION AS ZERO</button>
+  <div id="status">Waiting for sensor permission.</div>
+ </section>
+
+ <section class="panel">
+  <h2>02 / ORIENTATION · DEGREES</h2>
+  <div class="grid">
+   <div class="reading"><div class="label">ALPHA · HEADING</div>
+    <div class="value" id="alpha">—</div><div class="unit">degrees</div></div>
+   <div class="reading"><div class="label">BETA · PITCH</div>
+    <div class="value" id="beta">—</div><div class="unit">degrees</div></div>
+   <div class="reading"><div class="label">GAMMA · ROLL</div>
+    <div class="value" id="gamma">—</div><div class="unit">degrees</div></div>
+  </div>
+ </section>
+
+ <section class="panel">
+  <h2>03 / ACCELEROMETER · m/s²</h2>
+  <div class="grid">
+   <div class="reading"><div class="label">X</div><div class="value" id="ax">—</div></div>
+   <div class="reading"><div class="label">Y</div><div class="value" id="ay">—</div></div>
+   <div class="reading"><div class="label">Z</div><div class="value" id="az">—</div></div>
+  </div>
+  <h2>04 / GYROSCOPE · °/s</h2>
+  <div class="grid">
+   <div class="reading"><div class="label">X</div><div class="value" id="gx">—</div></div>
+   <div class="reading"><div class="label">Y</div><div class="value" id="gy">—</div></div>
+   <div class="reading"><div class="label">Z</div><div class="value" id="gz">—</div></div>
+  </div>
+ </section>
+ <p class="note">
+  Browser sensor access varies by device. Gyroscope and accelerometer
+  values show unavailable when the browser does not provide them.
+  Keep your phone securely mounted when testing your future steering wheel.
+ </p>
+</main>
+
+<script type="module">
+import * as THREE from
+ 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+
+const $ = id => document.getElementById(id);
+$('login').addEventListener('submit', e => {
+ e.preventDefault();
+ if ($('password').value === '12345') {
+   $('lock').style.display = 'none';
+ } else {
+   $('error').textContent = 'Incorrect password. Try again.';
+   $('password').value = '';
+ }
+});
+
+// Build a simple 3D aircraft from geometric parts.
+const host = $('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0a1728');
+const camera = new THREE.PerspectiveCamera(45,1,0.1,100);
+camera.position.set(5,4,6);
+camera.lookAt(0,0,0);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+host.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xbdeaff,0x24344e,2));
+const light = new THREE.DirectionalLight(0xffffff,2.5);
+light.position.set(4,8,5);
+scene.add(light);
+
+const plane = new THREE.Group();
+scene.add(plane);
+
+function part(w,h,d,x,y,z,color, bevel=false) {
+ const mesh = new THREE.Mesh(
+  new THREE.BoxGeometry(w,h,d),
+  new THREE.MeshStandardMaterial({
+   color,metalness:.35,roughness:.38
+  })
+ );
+ mesh.position.set(x,y,z);
+ plane.add(mesh);
+ return mesh;
+}
+part(.30,.28,3.2,0,0,0,0xd9e7f4); // fuselage
+part(4.2,.09,.85,0,0,-.1,0x19bce5); // wings
+part(1.35,.08,.48,0,.08,-1.25,0x19bce5); // tailplane
+part(.08,.48,.55,0,.24,-1.25,0xffa84d); // fin
+
+const nose = new THREE.Mesh(
+ new THREE.ConeGeometry(.22,.65,24),
+ new THREE.MeshStandardMaterial({color:0xffa84d,metalness:.25})
+);
+nose.rotation.x = -Math.PI/2;
+nose.position.z = 1.82;
+plane.add(nose);
+
+const cockpit = new THREE.Mesh(
+ new THREE.BoxGeometry(.24,.16,.42),
+ new THREE.MeshStandardMaterial({color:0x2368a8,metalness:.5,roughness:.2})
+);
+cockpit.position.set(0,.18,.55);
+plane.add(cockpit);
+
+// Reference grid.
+const grid = new THREE.GridHelper(10,20,0x246080,0x19334d);
+grid.position.y=-1;
+scene.add(grid);
+
+function resize(){
+ const w=host.clientWidth,h=host.clientHeight;
+ renderer.setSize(w,h,false);
+ camera.aspect=w/h;
+ camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(host);
+resize();
+
+let orientation={alpha:0,beta:0,gamma:0};
+let zero={alpha:0,beta:0,gamma:0};
+let haveOrientation=false;
+const rad = THREE.MathUtils.degToRad;
+function display(id,value){
+ $(id).textContent = Number.isFinite(value) ? value.toFixed(1) : '—';
+}
+function orient(e){
+ orientation={
+  alpha:e.alpha,beta:e.beta,gamma:e.gamma
+ };
+ if(e.alpha==null || e.beta==null || e.gamma==null)return;
+ haveOrientation=true;
+ display('alpha',e.alpha);
+ display('beta',e.beta);
+ display('gamma',e.gamma);
+
+ // Relative attitude drives the aircraft model.
+ const a=rad(e.alpha-zero.alpha);
+ const b=rad(e.beta-zero.beta);
+ const g=rad(e.gamma-zero.gamma);
+ plane.rotation.order='YXZ';
+ plane.rotation.set(b,a,-g,'YXZ');
+}
+function motion(e){
+ const a=e.accelerationIncludingGravity;
+ if(a){
+  display('ax',a.x);display('ay',a.y);display('az',a.z);
+ }
+ const r=e.rotationRate;
+ if(r){
+  display('gx',r.beta);display('gy',r.gamma);display('gz',r.alpha);
+ }
+}
+let listening=false;
+async function startSensors(){
+ try{
+  if(typeof DeviceOrientationEvent==='undefined'){
+   $('status').textContent='Orientation sensors are not supported here.';
+   return;
+  }
+  if(typeof DeviceOrientationEvent.requestPermission==='function'){
+   const permission=await DeviceOrientationEvent.requestPermission();
+   if(permission!=='granted')throw Error('Sensor permission was denied.');
+  }
+  window.addEventListener('deviceorientation',orient);
+  window.addEventListener('devicemotion',motion);
+  listening=true;
+  $('status').textContent='Sensors enabled. Tilt and rotate your phone.';
+  $('sensorButton').textContent='SENSORS ENABLED';
+ }catch(err){
+  $('status').textContent='Could not enable sensors: '+err.message+
+   ' Try HTTPS and check browser permissions.';
+ }
+}
+$('sensorButton').addEventListener('click',startSensors);
+$('calibrate').addEventListener('click',()=>{
+ if(!haveOrientation){
+  $('status').textContent='Enable sensors and wait for readings first.';
+  return;
+ }
+ zero={...orientation};
+ $('status').textContent='Reference position reset.';
+});
+
+// Smooth rendering loop.
+function animate(){
+ requestAnimationFrame(animate);
+ renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>
